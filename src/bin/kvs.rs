@@ -1,4 +1,4 @@
-use clap::{App, SubCommand, Arg};
+use clap::{App, Arg, SubCommand};
 use kvs::KvStore;
 
 fn main() {
@@ -6,43 +6,47 @@ fn main() {
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_AUTHORS"))
         .about(env!("CARGO_PKG_DESCRIPTION"))
-        .subcommand(SubCommand::with_name("set")
-                    .arg(
-                        Arg::with_name("key")
+        .subcommand(
+            SubCommand::with_name("set")
+                .arg(
+                    Arg::with_name("key")
                         .help("unique key in store")
                         .index(1)
-                        .required(true)
-                        )
-                    .arg(
-                        Arg::with_name("value")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("value")
                         .help("associated value for key")
                         .index(2)
-                        .required(true)
-                        )
-                    )
-        .subcommand(SubCommand::with_name("get")
-                    .arg(
-                        Arg::with_name("key")
-                        .help("unique key in store")
-                        .index(1)
-                        .required(true)
-                        )
-                    )
-        .subcommand(SubCommand::with_name("rm")
-                    .arg(
-                        Arg::with_name("key")
-                        .help("unique key in store")
-                        .index(1)
-                        .required(true)
-                        )
-                    )
+                        .required(true),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("get").arg(
+                Arg::with_name("key")
+                    .help("unique key in store")
+                    .index(1)
+                    .required(true),
+            ),
+        )
+        .subcommand(
+            SubCommand::with_name("rm").arg(
+                Arg::with_name("key")
+                    .help("unique key in store")
+                    .index(1)
+                    .required(true),
+            ),
+        )
         .get_matches();
 
     let mut kvs = KvStore::new();
 
     match args.subcommand() {
         ("set", Some(set)) => {
-            kvs.set(set.value_of("key").unwrap().to_owned(), set.value_of("value").unwrap().to_owned());
+            kvs.set(
+                set.value_of("key").unwrap().to_owned(),
+                set.value_of("value").unwrap().to_owned(),
+            );
             eprintln!("unimplemented");
             std::process::exit(1)
         }

@@ -8,14 +8,12 @@ impl KvStore {
     }
 
     pub fn set(&mut self, _key: String, _value: String) {
-        unimplemented!("Nothing here")
     }
 
     pub fn get(&self, _key: String) -> Option<String> {
-        unimplemented!("Nothing here")
+        None
     }
 
     pub fn remove(&mut self, _key: String) {
-        unimplemented!("Nothing here")
     }
 }

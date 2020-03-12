@@ -2,8 +2,10 @@ use clap::{App, SubCommand, Arg};
 use kvs::KvStore;
 
 fn main() {
-    let args = App::new("Key Value Store")
-        .version("0.1.0")
+    let args = App::new(env!("CARGO_PKG_NAME"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .author(env!("CARGO_PKG_AUTHORS"))
+        .about(env!("CARGO_PKG_DESCRIPTION"))
         .subcommand(SubCommand::with_name("set")
                     .arg(
                         Arg::with_name("key")

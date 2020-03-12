@@ -1,69 +1,48 @@
-use clap::{App, Arg, SubCommand};
 use kvs::KvStore;
+use structopt::StructOpt;
+
+#[derive(Debug,StructOpt)]
+#[structopt(about,author)]
+enum Args {
+    Set {
+        /// unique key in store
+        #[structopt(required = true)]
+        key: String,
+        /// associated value for key
+        #[structopt(required = true)]
+        value: String,
+    },
+    Get {
+        /// unique key in store
+        #[structopt(required = true)]
+        key: String,
+    },
+    Rm {
+        /// unique key in store
+        #[structopt(required = true)]
+        key: String,
+    }
+}
 
 fn main() {
-    let args = App::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .author(env!("CARGO_PKG_AUTHORS"))
-        .about(env!("CARGO_PKG_DESCRIPTION"))
-        .subcommand(
-            SubCommand::with_name("set")
-                .arg(
-                    Arg::with_name("key")
-                        .help("unique key in store")
-                        .index(1)
-                        .required(true),
-                )
-                .arg(
-                    Arg::with_name("value")
-                        .help("associated value for key")
-                        .index(2)
-                        .required(true),
-                ),
-        )
-        .subcommand(
-            SubCommand::with_name("get").arg(
-                Arg::with_name("key")
-                    .help("unique key in store")
-                    .index(1)
-                    .required(true),
-            ),
-        )
-        .subcommand(
-            SubCommand::with_name("rm").arg(
-                Arg::with_name("key")
-                    .help("unique key in store")
-                    .index(1)
-                    .required(true),
-            ),
-        )
-        .get_matches();
-
+    let args = Args::from_args();
     let mut kvs = KvStore::new();
 
-    match args.subcommand() {
-        ("set", Some(set)) => {
-            kvs.set(
-                set.value_of("key").unwrap().to_owned(),
-                set.value_of("value").unwrap().to_owned(),
-            );
+    match args {
+        Args::Set{key, value} => {
+            kvs.set(key,value);
             eprintln!("unimplemented");
             std::process::exit(1)
         }
-        ("get", Some(get)) => {
-            kvs.get(get.value_of("key").unwrap().to_owned());
+        Args::Get{key} => {
+            kvs.get(key);
             eprintln!("unimplemented");
             std::process::exit(1)
         }
-        ("rm", Some(rm)) => {
-            kvs.remove(rm.value_of("key").unwrap().to_owned());
+        Args::Rm{key} => {
+            kvs.remove(key);
             eprintln!("unimplemented");
             std::process::exit(1)
         }
-        ("", None) => {
-            eprintln!("nothing to do");
-            std::process::exit(1);
-        }
-        _ => unreachable!(),
     }
 }

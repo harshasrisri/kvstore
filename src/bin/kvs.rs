@@ -30,17 +30,17 @@ fn main() {
 
     match args {
         Args::Set{key, value} => {
-            kvs.set(key,value);
+            kvs.set(key.clone(), value.clone()).expect(format!("Error adding ({},{})", key, value).as_str());
             eprintln!("unimplemented");
             std::process::exit(1)
         }
         Args::Get{key} => {
-            kvs.get(key);
+            kvs.get(key.clone()).expect(format!("Error getting value for ({})", key).as_str());
             eprintln!("unimplemented");
             std::process::exit(1)
         }
         Args::Rm{key} => {
-            kvs.remove(key);
+            kvs.remove(key.clone()).expect(format!("Error removing entry for ({})", key).as_str());
             eprintln!("unimplemented");
             std::process::exit(1)
         }

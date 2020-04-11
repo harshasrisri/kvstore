@@ -1,9 +1,8 @@
-use kvs::KvStore;
-use kvs::KvResult;
+use kvs::{KvStore, Result};
 use structopt::StructOpt;
 
-#[derive(Debug,StructOpt)]
-#[structopt(about,author)]
+#[derive(Debug, StructOpt)]
+#[structopt(about, author)]
 enum Args {
     Set {
         /// unique key in store
@@ -22,26 +21,26 @@ enum Args {
         /// unique key in store
         #[structopt(required = true)]
         key: String,
-    }
+    },
 }
 
-fn main() -> KvResult<()> {
+fn main() -> Result<()> {
     let args = Args::from_args();
-    let mut kvs = KvStore::new();
+    let mut kvs = KvStore::new("KvStore.log")?;
 
     match args {
-        Args::Set{key, value} => {
-            kvs.set(key.clone(), value.clone())?;
+        Args::Set { key, value } => {
+            kvs.set(key, value)?;
             eprintln!("unimplemented");
             std::process::exit(1)
         }
-        Args::Get{key} => {
-            kvs.get(key.clone())?;
+        Args::Get { key } => {
+            kvs.get(key)?;
             eprintln!("unimplemented");
             std::process::exit(1)
         }
-        Args::Rm{key} => {
-            kvs.remove(key.clone())?;
+        Args::Rm { key } => {
+            kvs.remove(key)?;
             eprintln!("unimplemented");
             std::process::exit(1)
         }

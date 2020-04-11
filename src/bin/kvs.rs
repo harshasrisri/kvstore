@@ -1,4 +1,5 @@
 use kvs::KvStore;
+use kvs::KvResult;
 use structopt::StructOpt;
 
 #[derive(Debug,StructOpt)]
@@ -24,23 +25,23 @@ enum Args {
     }
 }
 
-fn main() {
+fn main() -> KvResult<()> {
     let args = Args::from_args();
     let mut kvs = KvStore::new();
 
     match args {
         Args::Set{key, value} => {
-            kvs.set(key.clone(), value.clone()).expect(format!("Error adding ({},{})", key, value).as_str());
+            kvs.set(key.clone(), value.clone())?;
             eprintln!("unimplemented");
             std::process::exit(1)
         }
         Args::Get{key} => {
-            kvs.get(key.clone()).expect(format!("Error getting value for ({})", key).as_str());
+            kvs.get(key.clone())?;
             eprintln!("unimplemented");
             std::process::exit(1)
         }
         Args::Rm{key} => {
-            kvs.remove(key.clone()).expect(format!("Error removing entry for ({})", key).as_str());
+            kvs.remove(key.clone())?;
             eprintln!("unimplemented");
             std::process::exit(1)
         }

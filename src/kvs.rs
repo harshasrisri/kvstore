@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use failure::{err_msg};
+
+pub type KvResult<T> = std::result::Result<T, failure::Error>;
 
 /// A KvStore is a type which holds a map of keys to values. Keys are unique 
 /// and map to values. A key-value pair can be added, a key can be queried or 
@@ -28,26 +31,24 @@ impl KvStore {
     }
 
     /// API to add a key-value pair to the KvStore
-    pub fn set(&mut self, key: String, value: String) -> Result<()> {
+    pub fn set(&mut self, key: String, value: String) -> KvResult<()> {
         self.store.insert(key, value);
         Ok(())
     }
 
     /// API to query if a key is present in the KvStore and return its value
-    pub fn get(&self, key: String) -> Result<Option<String>> {
+    pub fn get(&self, key: String) -> KvResult<Option<String>> {
         Ok(self.store.get(&key).cloned())
     }
 
     /// API to remove a key if it exists in the KvStore
-    pub fn remove(&mut self, key: String) -> Result<()> {
+    pub fn remove(&mut self, key: String) -> KvResult<()> {
         self.store.remove(&key);
         Ok(())
     }
 
     /// API to open the KvStore from a given path and return it
-    pub fn open(_path: impl Into<PathBuf>) -> Result<KvStore> {
+    pub fn open(_path: impl Into<PathBuf>) -> KvResult<KvStore> {
         Ok(KvStore::new())
     }
 }
-
-pub type Result<T> = std::result::Result<T, std::io::Error>;

@@ -1,2 +1,2 @@
 mod kvs;
-pub use crate::kvs::{KvStore, Result};
+pub use crate::kvs::{KvStore, KvResult};

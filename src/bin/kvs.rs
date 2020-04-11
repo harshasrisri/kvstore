@@ -1,13 +1,13 @@
-use kvs::{KvStore, Ops, Result};
-use structopt::StructOpt;
+use kvs::{KvStore, Operations, Result};
 use std::path::PathBuf;
+use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 #[structopt(about, author)]
 struct Args {
     /// Operations that can be performed on the KvStore
     #[structopt(subcommand)]
-    pub ops: Ops,
+    pub ops: Operations,
 
     /// Path to store the KvStore log file
     #[structopt(short, long, parse(from_os_str), default_value = "KvStore.log")]
@@ -16,20 +16,20 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::from_args();
-    let mut kvs = KvStore::new(args.log_store)?;
+    let mut kvs = KvStore::new();
 
     match args.ops {
-        Ops::Set { key, value } => {
+        Operations::Set { key, value } => {
             kvs.set(key, value)?;
             eprintln!("unimplemented");
             std::process::exit(1)
         }
-        Ops::Get { key } => {
+        Operations::Get { key } => {
             kvs.get(key)?;
             eprintln!("unimplemented");
             std::process::exit(1)
         }
-        Ops::Rm { key } => {
+        Operations::Rm { key } => {
             kvs.remove(key)?;
             eprintln!("unimplemented");
             std::process::exit(1)

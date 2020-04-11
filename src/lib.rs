@@ -1,9 +1,14 @@
+mod kvcli;
 mod kvs;
-pub use crate::kvs::{KvStore, Result};
+pub use crate::kvcli::KvCli;
+pub use crate::kvs::KvStore;
+use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
-#[derive(Debug, StructOpt)]
-pub enum Ops {
+pub type Result<T> = std::result::Result<T, failure::Error>;
+
+#[derive(Debug, StructOpt, Serialize, Deserialize)]
+pub enum Operations {
     Set {
         /// unique key in store
         #[structopt(required = true)]
@@ -23,4 +28,3 @@ pub enum Ops {
         key: String,
     },
 }
-

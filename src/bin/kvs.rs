@@ -16,7 +16,7 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::from_args();
-    let mut kvs = KvStore::new();
+    let mut kvs = KvStore::open(args.log_store)?;
 
     match args.ops {
         Operations::Set { key, value } => {

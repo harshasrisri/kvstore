@@ -1,4 +1,5 @@
-use crate::{KvCli, Result};
+pub use crate::kvls::KvLogStore;
+use crate::Result;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -15,39 +16,36 @@ use std::path::{Path, PathBuf};
 /// kv.remove("one".to_owned());
 /// assert_eq!(kv.get("one".to_owned()), None);
 /// ```
-#[derive(Default)]
 pub struct KvStore {
-    store: HashMap<String, String>,
+    kvmap: HashMap<String, String>,
+    kvlog: KvLogStore,
 }
 
 impl KvStore {
-    /// Method to create a new and empty KvStore
-    pub fn new() -> KvStore {
-        KvStore {
-            store: HashMap::new(),
-        }
+    /// API to open the KvStore from a given path and return it
+    pub fn open(path: impl Into<PathBuf> + AsRef<Path>) -> Result<KvStore> {
+        Ok(KvStore {
+            kvmap: HashMap::new(),
+            kvlog: KvLogStore::new(path)?,
+        })
     }
 
     /// API to add a key-value pair to the KvStore
     pub fn set(&mut self, key: String, value: String) -> Result<()> {
-        self.store.insert(key, value);
+        self.kvlog.set(&key, &value)?;
+        self.kvmap.insert(key, value);
         Ok(())
     }
 
     /// API to query if a key is present in the KvStore and return its value
     pub fn get(&self, key: String) -> Result<Option<String>> {
-        Ok(self.store.get(&key).cloned())
+        Ok(self.kvmap.get(&key).cloned())
     }
 
     /// API to remove a key if it exists in the KvStore
     pub fn remove(&mut self, key: String) -> Result<()> {
-        self.store.remove(&key);
+        self.kvlog.remove(&key)?;
+        self.kvmap.remove(&key);
         Ok(())
-    }
-
-    /// API to open the KvStore from a given path and return it
-    pub fn open(path: impl Into<PathBuf> + AsRef<Path>) -> Result<KvStore> {
-        let _ = KvCli::new(path);
-        Ok(KvStore::new())
     }
 }

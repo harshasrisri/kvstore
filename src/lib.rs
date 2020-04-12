@@ -1,6 +1,5 @@
-mod kvcli;
+mod kvls;
 mod kvs;
-pub use crate::kvcli::KvCli;
 pub use crate::kvs::KvStore;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;

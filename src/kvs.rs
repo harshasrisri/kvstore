@@ -1,7 +1,7 @@
 pub use crate::kvls::KvLogStore;
 use crate::Result;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// A KvStore is a type which holds a map of keys to values. Keys are unique
 /// and map to values. A key-value pair can be added, a key can be queried or
@@ -23,8 +23,9 @@ pub struct KvStore {
 
 impl KvStore {
     /// API to open the KvStore from a given path and return it
-    pub fn open<F>(path: F) -> Result<KvStore> 
-    where F: AsRef<Path> + Clone
+    pub fn open<F>(path: F) -> Result<KvStore>
+    where
+        F: AsRef<Path> + Clone,
     {
         Ok(KvStore {
             kvmap: HashMap::new(),

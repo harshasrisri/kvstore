@@ -21,8 +21,6 @@ fn main() -> Result<()> {
     match args.ops {
         Operations::Set { key, value } => {
             kvs.set(key, value)?;
-            eprintln!("unimplemented");
-            std::process::exit(1)
         }
         Operations::Get { key } => {
             kvs.get(key)?;
@@ -35,4 +33,5 @@ fn main() -> Result<()> {
             std::process::exit(1)
         }
     }
+    Ok(())
 }

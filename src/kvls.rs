@@ -1,29 +1,36 @@
-use crate::Result;
+use crate::{Result, Operations};
 use std::fs::{File, OpenOptions};
+use std::io::{BufReader, BufWriter};
 use std::path::Path;
+use serde_json as sj;
 
 pub struct KvLogStore {
-    log_handle: File,
+    log_reader: BufReader<File>,
+    log_writer: BufWriter<File>,
 }
 
 impl KvLogStore {
     /// Method to open a Key Value Store from a file
     pub fn new<F>(filename: F) -> Result<KvLogStore>
     where
-        F: AsRef<Path>,
+        F: AsRef<Path> + Clone,
     {
-        Ok(KvLogStore {
-            log_handle: OpenOptions::new()
-                .read(true)
-                .append(true)
-                .create(true)
-                .open(filename)?,
-        })
+        let log_handle = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(filename.clone())?;
+
+        let log_writer = BufWriter::new(log_handle);
+        let log_reader = BufReader::new(File::open(filename)?);
+
+        Ok(KvLogStore { log_reader, log_writer })
     }
 
     /// API to add a key-value pair to the Kv Log Store
-    pub fn set(&mut self, _key: &String, _value: &String) -> Result<()> {
-        unimplemented!()
+    pub fn set(&mut self, key: &String, value: &String) -> Result<()> {
+        let op = Operations::Set { key: key.clone(), value: value.clone() };
+        sj::to_writer(&mut self.log_writer, &op)?;
+        Ok(())
     }
 
     /// API to remove a key if it exists in the Kv Log Store

@@ -23,7 +23,9 @@ pub struct KvStore {
 
 impl KvStore {
     /// API to open the KvStore from a given path and return it
-    pub fn open(path: impl Into<PathBuf> + AsRef<Path>) -> Result<KvStore> {
+    pub fn open<F>(path: F) -> Result<KvStore> 
+    where F: AsRef<Path> + Clone
+    {
         Ok(KvStore {
             kvmap: HashMap::new(),
             kvlog: KvLogStore::new(path)?,

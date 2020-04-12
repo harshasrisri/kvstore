@@ -34,7 +34,9 @@ impl KvLogStore {
     }
 
     /// API to remove a key if it exists in the Kv Log Store
-    pub fn remove(&mut self, _key: &String) -> Result<()> {
-        unimplemented!()
+    pub fn remove(&mut self, key: &String) -> Result<()> {
+        let op = Operations::Rm { key: key.clone() };
+        sj::to_writer(&mut self.log_writer, &op)?;
+        Ok(())
     }
 }

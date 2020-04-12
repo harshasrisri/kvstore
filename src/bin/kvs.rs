@@ -29,8 +29,6 @@ fn main() -> Result<()> {
         }
         Operations::Rm { key } => {
             kvs.remove(key)?;
-            eprintln!("unimplemented");
-            std::process::exit(1)
         }
     }
     Ok(())

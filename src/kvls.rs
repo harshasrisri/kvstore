@@ -56,7 +56,7 @@ impl KvLogStore {
             match op? {
                 Operations::Set { key, value } => map.insert(key, value),
                 Operations::Rm { key } => map.remove(&key),
-                Operations::Get { key } => None,
+                Operations::Get { .. } => None,
             };
         }
         Ok(map)

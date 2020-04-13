@@ -1,7 +1,7 @@
+use failure::err_msg;
 use kvs::{KvStore, Operations, Result};
 use std::path::PathBuf;
 use structopt::StructOpt;
-use failure::err_msg;
 
 #[derive(Debug, StructOpt)]
 #[structopt(about, author)]
@@ -10,8 +10,8 @@ struct Args {
     #[structopt(subcommand)]
     pub ops: Operations,
 
-    /// Path to store the KvStore log file
-    #[structopt(short, long, parse(from_os_str), default_value = "KvStore.log")]
+    /// Path where the KvStore.log file is present
+    #[structopt(short, long, parse(from_os_str), default_value = ".")]
     pub log_store: PathBuf,
 }
 
@@ -27,7 +27,7 @@ fn main() -> Result<()> {
             if let Some(value) = kvs.get(key)? {
                 println!("{}", value);
             } else {
-                return Err(err_msg("Rm: Key not found"));
+                return Err(err_msg("Key not found"));
             }
         }
         Operations::Rm { key } => {

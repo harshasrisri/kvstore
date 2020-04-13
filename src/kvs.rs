@@ -2,6 +2,7 @@ pub use crate::kvls::KvLogStore;
 use crate::Result;
 use failure::err_msg;
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::path::Path;
 
 /// A KvStore is a type which holds a map of keys to values. Keys are unique
@@ -26,8 +27,9 @@ impl KvStore {
     /// API to open the KvStore from a given path and return it
     pub fn open<F>(path: F) -> Result<KvStore>
     where
-        F: AsRef<Path> + Clone,
+        F: AsRef<Path> + AsRef<OsStr> + Clone,
     {
+        let path = Path::new(&path).join("KvStore.log");
         let kvlog = KvLogStore::new(path)?;
         let kvmap = kvlog.to_map()?;
         Ok(KvStore { kvmap, kvlog })
@@ -48,7 +50,7 @@ impl KvStore {
     /// API to remove a key if it exists in the KvStore
     pub fn remove(&mut self, key: String) -> Result<()> {
         if !self.kvmap.contains_key(&key) {
-            return Err(err_msg("Rm: Key not found"));
+            return Err(err_msg("Key not found"));
         }
         self.kvlog.remove(&key)?;
         self.kvmap.remove(&key);

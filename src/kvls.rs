@@ -1,4 +1,5 @@
-use crate::{Result, Operations};
+use crate::{Operations, Result};
+use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
@@ -29,19 +30,35 @@ impl KvLogStore {
     }
 
     /// API to add a key-value pair to the Kv Log Store
-    pub fn set(&mut self, key: &String, value: &String) -> Result<()> {
+    pub fn set(&mut self, key: &str, value: &str) -> Result<()> {
         let op = Operations::Set {
-            key: key.clone(),
-            value: value.clone(),
+            key: key.to_owned(),
+            value: value.to_owned(),
         };
         serde_json::to_writer(&mut self.log_writer, &op)?;
         Ok(())
     }
 
     /// API to remove a key if it exists in the Kv Log Store
-    pub fn remove(&mut self, key: &String) -> Result<()> {
-        let op = Operations::Rm { key: key.clone() };
+    pub fn remove(&mut self, key: &str) -> Result<()> {
+        let op = Operations::Rm {
+            key: key.to_owned(),
+        };
         serde_json::to_writer(&mut self.log_writer, &op)?;
         Ok(())
+    }
+
+    pub fn to_map(&self) -> Result<HashMap<String, String>> {
+        let reader = self.log_reader.get_ref().clone();
+        let mut map = HashMap::new();
+        let stream = serde_json::Deserializer::from_reader(reader).into_iter::<Operations>();
+        for op in stream {
+            match op? {
+                Operations::Set { key, value } => map.insert(key, value),
+                Operations::Rm { key } => map.remove(&key),
+                Operations::Get { key } => None,
+            };
+        }
+        Ok(map)
     }
 }

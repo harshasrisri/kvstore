@@ -1,6 +1,7 @@
 use kvs::{KvStore, Operations, Result};
 use std::path::PathBuf;
 use structopt::StructOpt;
+use failure::err_msg;
 
 #[derive(Debug, StructOpt)]
 #[structopt(about, author)]
@@ -23,9 +24,11 @@ fn main() -> Result<()> {
             kvs.set(key, value)?;
         }
         Operations::Get { key } => {
-            kvs.get(key)?;
-            eprintln!("unimplemented");
-            std::process::exit(1)
+            if let Some(value) = kvs.get(key)? {
+                println!("{}", value);
+            } else {
+                return Err(err_msg("Rm: Key not found"));
+            }
         }
         Operations::Rm { key } => {
             kvs.remove(key)?;

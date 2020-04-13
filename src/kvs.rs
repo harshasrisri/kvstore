@@ -2,6 +2,7 @@ pub use crate::kvls::KvLogStore;
 use crate::Result;
 use std::collections::HashMap;
 use std::path::Path;
+use failure::err_msg;
 
 /// A KvStore is a type which holds a map of keys to values. Keys are unique
 /// and map to values. A key-value pair can be added, a key can be queried or
@@ -27,10 +28,11 @@ impl KvStore {
     where
         F: AsRef<Path> + Clone,
     {
-        Ok(KvStore {
+        let kvs = KvStore {
             kvmap: HashMap::new(),
             kvlog: KvLogStore::new(path)?,
-        })
+        };
+        Ok(kvs)
     }
 
     /// API to add a key-value pair to the KvStore
@@ -47,6 +49,9 @@ impl KvStore {
 
     /// API to remove a key if it exists in the KvStore
     pub fn remove(&mut self, key: String) -> Result<()> {
+        if !self.kvmap.contains_key(&key) {
+            return Err(err_msg("Rm: Key not found"));
+        }
         self.kvlog.remove(&key)?;
         self.kvmap.remove(&key);
         Ok(())

@@ -51,7 +51,7 @@ impl KvLogStore {
     pub fn to_map(&self) -> Result<HashMap<String, String>> {
         let reader = self.log_reader.get_ref().clone();
         let mut map = HashMap::new();
-        let stream = serde_json::Deserializer::from_reader(reader).into_iter::<Operations>();
+        let stream = serde_json::Deserializer::from_reader(reader).into_iter();
         for op in stream {
             match op? {
                 Operations::Set { key, value } => map.insert(key, value),

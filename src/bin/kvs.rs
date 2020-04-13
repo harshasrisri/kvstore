@@ -27,11 +27,14 @@ fn main() -> Result<()> {
             if let Some(value) = kvs.get(key)? {
                 println!("{}", value);
             } else {
-                return Err(err_msg("Key not found"));
+                println!("Key not found");
             }
         }
         Operations::Rm { key } => {
-            kvs.remove(key)?;
+            if kvs.remove(key).is_err() {
+                println!("Key not found");
+                std::process::exit(1);
+            }
         }
     }
     Ok(())

@@ -19,7 +19,7 @@ use std::path::Path;
 /// assert_eq!(kv.get("one".to_owned()), None);
 /// ```
 pub struct KvStore {
-    kvmap: HashMap<String, String>,
+    kvmap: HashMap<String, u64>,
     kvlog: KvLogStore,
 }
 
@@ -30,21 +30,25 @@ impl KvStore {
         F: AsRef<Path> + AsRef<OsStr> + Clone,
     {
         let path = Path::new(&path).join("KvStore.log");
-        let kvlog = KvLogStore::new(path)?;
+        let mut kvlog = KvLogStore::new(path)?;
         let kvmap = kvlog.to_map()?;
         Ok(KvStore { kvmap, kvlog })
     }
 
     /// API to add a key-value pair to the KvStore
     pub fn set(&mut self, key: String, value: String) -> Result<()> {
-        self.kvlog.set(&key, &value)?;
-        self.kvmap.insert(key, value);
+        let pos = self.kvlog.set(&key, &value)?;
+        self.kvmap.insert(key, pos);
         Ok(())
     }
 
     /// API to query if a key is present in the KvStore and return its value
-    pub fn get(&self, key: String) -> Result<Option<String>> {
-        Ok(self.kvmap.get(&key).cloned())
+    pub fn get(&mut self, key: String) -> Result<Option<String>> {
+        if let Some(pos) = self.kvmap.get(&key) {
+            let value = self.kvlog.get_at_offset(&key, *pos)?;
+            return Ok(Some(value));
+        }
+        Ok(None)
     }
 
     /// API to remove a key if it exists in the KvStore

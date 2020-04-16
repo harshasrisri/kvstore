@@ -1,4 +1,3 @@
-use failure::err_msg;
 use kvs::{KvStore, Operations, Result};
 use std::path::PathBuf;
 use structopt::StructOpt;

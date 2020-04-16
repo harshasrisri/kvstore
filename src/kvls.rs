@@ -1,8 +1,9 @@
 use crate::{Operations, Result};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-use std::io::{BufReader, BufWriter};
+use std::io::{Seek, SeekFrom, BufReader, BufWriter};
 use std::path::Path;
+use failure::err_msg;
 
 pub struct KvLogStore {
     log_reader: BufReader<File>,
@@ -30,13 +31,14 @@ impl KvLogStore {
     }
 
     /// API to add a key-value pair to the Kv Log Store
-    pub fn set(&mut self, key: &str, value: &str) -> Result<()> {
+    pub fn set(&mut self, key: &str, value: &str) -> Result<u64> {
         let op = Operations::Set {
             key: key.to_owned(),
             value: value.to_owned(),
         };
+        let pos = self.log_writer.seek(SeekFrom::End(0))?;
         serde_json::to_writer(&mut self.log_writer, &op)?;
-        Ok(())
+        Ok(pos)
     }
 
     /// API to remove a key if it exists in the Kv Log Store
@@ -48,17 +50,34 @@ impl KvLogStore {
         Ok(())
     }
 
-    pub fn to_map(&self) -> Result<HashMap<String, String>> {
-        let reader = self.log_reader.get_ref().clone();
+    pub fn to_map(&mut self) -> Result<HashMap<String, u64>> {
+        let reader = self.log_reader.get_mut();
         let mut map = HashMap::new();
-        let stream = serde_json::Deserializer::from_reader(reader).into_iter();
-        for op in stream {
+        let mut pos = reader.seek(SeekFrom::Start(0))?;
+        let mut stream = serde_json::Deserializer::from_reader(reader).into_iter();
+        while let Some(op) = stream.next() {
             match op? {
-                Operations::Set { key, value } => map.insert(key, value),
+                Operations::Set { key, value: _ } => map.insert(key, pos),
                 Operations::Rm { key } => map.remove(&key),
                 Operations::Get { .. } => None,
             };
+            pos = stream.byte_offset() as u64;
         }
         Ok(map)
+    }
+
+    pub fn get_at_offset(&mut self, lookup_key: &str, pos: u64) -> Result<String> {
+        let reader = self.log_reader.get_mut();
+        reader.seek(SeekFrom::Start(pos))?;
+        let mut stream = serde_json::Deserializer::from_reader(reader).into_iter();
+        while let Some(op) = stream.next() {
+            if let Operations::Set { key, value } = op? {
+                if lookup_key == key {
+                    return Ok(value);
+                }
+            }
+            break;
+        }
+        return Err(err_msg("Key not found"));
     }
 }

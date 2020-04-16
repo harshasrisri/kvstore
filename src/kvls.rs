@@ -38,6 +38,7 @@ impl KvLogStore {
         };
         let pos = self.log_writer.seek(SeekFrom::End(0))?;
         serde_json::to_writer(&mut self.log_writer, &op)?;
+        self.log_writer.seek(SeekFrom::End(0))?;
         Ok(pos)
     }
 

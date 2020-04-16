@@ -31,7 +31,7 @@ impl KvStore {
     {
         let path = Path::new(&path).join("KvStore.log");
         let mut kvlog = KvLogStore::new(path)?;
-        let kvmap = kvlog.to_map()?;
+        let kvmap = kvlog.build_map()?;
         Ok(KvStore { kvmap, kvlog })
     }
 

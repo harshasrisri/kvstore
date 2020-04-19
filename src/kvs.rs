@@ -29,7 +29,6 @@ impl KvStore {
     where
         F: AsRef<Path> + AsRef<OsStr> + Clone,
     {
-        let path = Path::new(&path).join("KvStore.log");
         let mut kvlog = KvLogStore::new(path)?;
         let kvmap = kvlog.build_map()?;
         Ok(KvStore { kvmap, kvlog })

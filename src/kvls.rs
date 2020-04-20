@@ -3,7 +3,7 @@ use failure::err_msg;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs::{File, OpenOptions};
-use std::io::{BufReader, BufWriter, Seek, SeekFrom};
+use std::io::{BufReader, BufWriter, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 pub struct KvLogStore {
@@ -11,11 +11,9 @@ pub struct KvLogStore {
     reader: BufReader<File>,
     writer: BufWriter<File>,
     mapped: bool,
-    compaction_size: usize,
 }
 
 const LOG_FILE_NAME: &str = "kvls.ser";
-const COMPACT_FILE_NAME: &str = "kvls.compact.ser";
 
 impl KvLogStore {
     /// Method to open a Key Value Store from a file
@@ -35,7 +33,6 @@ impl KvLogStore {
             reader,
             writer,
             mapped: false,
-            compaction_size: 1024,
         })
     }
 
@@ -52,6 +49,13 @@ impl KvLogStore {
         Ok((reader, writer))
     }
 
+    fn write(&mut self, op: Operations) -> Result<u64> {
+        let v = serde_json::to_vec(&op)?;
+        self.writer.write(&v)?;
+        let end = self.writer.seek(SeekFrom::End(0))?;
+        Ok(end - v.len() as u64)
+    }
+
     /// API to add a key-value pair to the Kv Log Store
     pub fn set(&mut self, key: &str, value: &str) -> Result<u64> {
         self.checks_and_balances()?;
@@ -59,10 +63,7 @@ impl KvLogStore {
             key: key.to_owned(),
             value: value.to_owned(),
         };
-        let pos = self.writer.seek(SeekFrom::End(0))?;
-        serde_json::to_writer(&mut self.writer, &op)?;
-        self.writer.seek(SeekFrom::End(0))?;
-        Ok(pos)
+        self.write(op)
     }
 
     /// API to remove a key if it exists in the Kv Log Store
@@ -71,7 +72,7 @@ impl KvLogStore {
         let op = Operations::Rm {
             key: key.to_owned(),
         };
-        serde_json::to_writer(&mut self.writer, &op)?;
+        self.write(op)?;
         Ok(())
     }
 
@@ -98,14 +99,19 @@ impl KvLogStore {
         Ok(map)
     }
 
-    pub fn get_at_offset(&mut self, lookup_key: &str, pos: u64) -> Result<String> {
-        let reader = self.reader.get_mut();
+    pub fn get_at_offset(&self, lookup_key: &str, pos: u64) -> Result<String> {
+        let mut reader = self.reader.get_ref().try_clone()?;
         reader.seek(SeekFrom::Start(pos))?;
         let stream = serde_json::Deserializer::from_reader(reader).into_iter();
         for op in stream {
             if let Operations::Set { key, value } = op? {
                 if lookup_key == key {
                     return Ok(value);
+                } else {
+                    return Err(err_msg(format!(
+                        "Key mismatch in log store. Expected: {}. Found: {}",
+                        key, lookup_key
+                    )));
                 }
             }
             break;
@@ -115,16 +121,13 @@ impl KvLogStore {
 
     fn checks_and_balances(&mut self) -> Result<()> {
         if !self.mapped {
-            Err(err_msg("Log file not yet mapped"))
-        } else if self.writer.seek(SeekFrom::Current(0))? < self.compaction_size as u64 {
-            Ok(())
-        } else {
-            self.compact()
-        }
+            return Err(err_msg("Log file not yet mapped"));
+        } 
+        Ok(())
     }
 
-    fn compact(&mut self) -> Result<()> {
-        let compact_file = Path::new(&self.path).join(COMPACT_FILE_NAME);
+    pub fn compact(&mut self) -> Result<HashMap<String, u64>> {
+        let compact_file = Path::new(&self.path).join("kvls.compact.ser");
         let mut writer = BufWriter::new(File::create(&compact_file)?);
 
         for (key, pos) in self.build_map()? {
@@ -141,10 +144,7 @@ impl KvLogStore {
         self.reader = reader;
         self.writer = writer;
 
-        if self.writer.seek(SeekFrom::Current(0))? > self.compaction_size as u64 {
-            self.compaction_size *= 2;
-        }
-
-        Ok(())
+        eprintln!("Performed Compaction.");
+        self.build_map()
     }
 }

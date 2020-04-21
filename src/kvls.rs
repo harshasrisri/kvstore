@@ -7,7 +7,6 @@ use std::io::{BufReader, BufWriter, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 pub struct KvLogStore {
-    path: PathBuf,
     reader: BufReader<File>,
     writer: BufWriter<File>,
     mapped: bool,
@@ -29,7 +28,6 @@ impl KvLogStore {
         let (reader, writer) = Self::open_file_handles(&path)?;
 
         Ok(KvLogStore {
-            path,
             reader,
             writer,
             mapped: false,
@@ -49,10 +47,10 @@ impl KvLogStore {
         Ok((reader, writer))
     }
 
-    fn write(&mut self, op: Operations) -> Result<u64> {
-        let v = serde_json::to_vec(&op)?;
-        self.writer.write(&v)?;
-        let end = self.writer.seek(SeekFrom::End(0))?;
+    fn commit_operation(op: &Operations, mut writer: impl Write + Seek) -> Result<u64> {
+        let v = serde_json::to_vec(op)?;
+        writer.write(&v)?;
+        let end = writer.seek(SeekFrom::End(0))?;
         Ok(end - v.len() as u64)
     }
 
@@ -62,7 +60,7 @@ impl KvLogStore {
             key: key.to_owned(),
             value: value.to_owned(),
         };
-        self.write(op)
+        Self::commit_operation(&op, &mut self.writer)
     }
 
     /// API to remove a key if it exists in the Kv Log Store
@@ -70,7 +68,7 @@ impl KvLogStore {
         let op = Operations::Rm {
             key: key.to_owned(),
         };
-        self.write(op)?;
+        Self::commit_operation(&op, &mut self.writer)?;
         Ok(())
     }
 
@@ -116,27 +114,5 @@ impl KvLogStore {
             }
         };
         panic!("Shouldn't have been here!")
-    }
-
-    pub fn compact(&mut self) -> Result<HashMap<String, u64>> {
-        let compact_file = Path::new(&self.path).join("kvls.compact.ser");
-        let mut writer = BufWriter::new(File::create(&compact_file)?);
-
-        for (key, pos) in self.build_map()? {
-            let value = self.get_at_offset(&key, pos)?;
-            let op = Operations::Set { key, value };
-            serde_json::to_writer(&mut writer, &op)?;
-        }
-
-        let log_file = Path::new(&self.path).join(LOG_FILE_NAME);
-        std::fs::remove_file(&log_file)?;
-        std::fs::rename(compact_file, log_file)?;
-
-        let (reader, writer) = Self::open_file_handles(&self.path)?;
-        self.reader = reader;
-        self.writer = writer;
-
-        eprintln!("Performed Compaction.");
-        self.build_map()
     }
 }

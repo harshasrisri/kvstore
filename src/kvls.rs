@@ -58,7 +58,6 @@ impl KvLogStore {
 
     /// API to add a key-value pair to the Kv Log Store
     pub fn set(&mut self, key: &str, value: &str) -> Result<u64> {
-        self.checks_and_balances()?;
         let op = Operations::Set {
             key: key.to_owned(),
             value: value.to_owned(),
@@ -68,7 +67,6 @@ impl KvLogStore {
 
     /// API to remove a key if it exists in the Kv Log Store
     pub fn remove(&mut self, key: &str) -> Result<()> {
-        self.checks_and_balances()?;
         let op = Operations::Rm {
             key: key.to_owned(),
         };
@@ -113,17 +111,11 @@ impl KvLogStore {
                         key, lookup_key
                     )));
                 }
+            } else {
+                return Err(err_msg("KV map out of sync with KV store"));
             }
-            break;
-        }
-        Err(err_msg("Key not found"))
-    }
-
-    fn checks_and_balances(&mut self) -> Result<()> {
-        if !self.mapped {
-            return Err(err_msg("Log file not yet mapped"));
-        } 
-        Ok(())
+        };
+        panic!("Shouldn't have been here!")
     }
 
     pub fn compact(&mut self) -> Result<HashMap<String, u64>> {

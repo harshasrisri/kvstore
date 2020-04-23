@@ -30,7 +30,7 @@ impl KvStore {
         F: AsRef<Path> + AsRef<OsStr> + Clone,
     {
         let mut kvlog = KvLogStore::new(path)?;
-        let kvmap = kvlog.build_map()?;
+        let kvmap = kvlog.build_map::<String, String>()?;
         Ok(KvStore { kvmap, kvlog })
     }
 

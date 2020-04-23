@@ -10,13 +10,18 @@ use std::path::{Path, PathBuf};
 pub struct KvLogStore {
     reader: BufReader<File>,
     writer: BufWriter<File>,
-    mapped: bool,
 }
 
-#[derive(Serialize, Deserialize)]
-struct LogEntry {
-    key: String,
-    value: Option<String>,
+#[derive(Serialize)]
+struct SerLogEntry<'a, K, V> {
+    key: &'a K,
+    value: Option<&'a V>,
+}
+
+#[derive(Deserialize)]
+struct DeLogEntry<K, V> {
+    key: K,
+    value: Option<V>,
 }
 
 const LOG_FILE_NAME: &str = "kvls.ser";
@@ -37,7 +42,6 @@ impl KvLogStore {
         Ok(KvLogStore {
             reader,
             writer,
-            mapped: false,
         })
     }
 
@@ -54,7 +58,11 @@ impl KvLogStore {
         Ok((reader, writer))
     }
 
-    fn commit_operation(op: &LogEntry, mut writer: impl Write + Seek) -> Result<u64> {
+    fn commit_operation<K, V>(op: &SerLogEntry<K, V>, mut writer: impl Write + Seek) -> Result<u64> 
+    where 
+        K: Serialize,
+        V: Serialize,
+    {
         let v = serde_json::to_vec(op)?;
         writer.write_all(&v)?;
         let end = writer.seek(SeekFrom::End(0))?;
@@ -62,8 +70,12 @@ impl KvLogStore {
     }
 
     /// API to add a key-value pair to the Kv Log Store
-    pub fn set(&mut self, key: &str, value: &str) -> Result<u64> {
-        let entry = LogEntry {
+    pub fn set<K,V>(&mut self, key: &K, value: &V) -> Result<u64> 
+    where 
+        K: Serialize,
+        V: Serialize,
+    {
+        let entry = SerLogEntry {
             key: key.to_owned(),
             value: Some(value.to_owned()),
         };
@@ -71,45 +83,47 @@ impl KvLogStore {
     }
 
     /// API to remove a key if it exists in the Kv Log Store
-    pub fn remove(&mut self, key: &str) -> Result<()> {
-        let entry = LogEntry {
-            key: key.to_owned(),
+    pub fn remove<K: Serialize>(&mut self, key: &K) -> Result<()> {
+        let entry: SerLogEntry<K, K> = SerLogEntry {
+            key,
             value: None,
         };
         Self::commit_operation(&entry, &mut self.writer)?;
         Ok(())
     }
 
-    pub fn build_map(&mut self) -> Result<HashMap<String, u64>> {
+    pub fn build_map<'de, K, V>(&mut self) -> Result<HashMap<K, u64>> 
+    where
+    K: std::cmp::Eq + std::hash::Hash + Deserialize<'de>,
+    V: Deserialize<'de>,
+    {
         let reader = self.reader.get_mut();
         let mut map = HashMap::new();
         let mut pos = reader.seek(SeekFrom::Start(0))?;
         let mut stream = serde_json::Deserializer::from_reader(reader).into_iter();
         while let Some(op) = stream.next() {
-            match op? {
-                LogEntry {
-                    key,
-                    value: Some(_),
-                } => {
-                    map.insert(key, pos);
-                }
-                LogEntry { key, value: None } => {
-                    map.remove(&key);
-                }
-            };
+            let entry: DeLogEntry<K,V> = op?;
+            if entry.value.is_some() {
+                map.insert(entry.key, pos);
+            } else {
+                map.remove(&entry.key);
+            }
             pos = stream.byte_offset() as u64;
         }
-        self.mapped = true;
         Ok(map)
     }
 
-    pub fn get_at_offset(&self, lookup_key: &str, pos: u64) -> Result<String> {
+    pub fn get_at_offset<'de, K, V>(&self, lookup_key: &K, pos: u64) -> Result<V> 
+    where
+        K: Deserialize<'de> + std::cmp::PartialEq,
+        V: Deserialize<'de>,
+    {
         let mut reader = self.reader.get_ref().try_clone()?;
         reader.seek(SeekFrom::Start(pos))?;
-        let stream = serde_json::Deserializer::from_reader(reader).into_iter::<LogEntry>();
+        let stream = serde_json::Deserializer::from_reader(reader).into_iter();
         for op in stream {
-            let op = op?;
-            if op.key == lookup_key {
+            let op: DeLogEntry<K, V> = op?;
+            if op.key == *lookup_key {
                 if let Some(value) = op.value {
                     return Ok(value);
                 } else {
@@ -117,9 +131,7 @@ impl KvLogStore {
                 }
             } else {
                 return Err(err_msg(format!(
-                    "Key mismatch in log store. Expected: {}. Found: {}",
-                    op.key, lookup_key
-                )));
+                    "Key mismatch in log store")));
             }
         }
         panic!("Shouldn't have been here!")

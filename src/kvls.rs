@@ -1,11 +1,11 @@
 use crate::Result;
 use failure::err_msg;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use serde::{Serialize, Deserialize};
 
 pub struct KvLogStore {
     reader: BufReader<File>,
@@ -56,20 +56,26 @@ impl KvLogStore {
 
     fn commit_operation(op: &LogEntry, mut writer: impl Write + Seek) -> Result<u64> {
         let v = serde_json::to_vec(op)?;
-        writer.write(&v)?;
+        writer.write_all(&v)?;
         let end = writer.seek(SeekFrom::End(0))?;
         Ok(end - v.len() as u64)
     }
 
     /// API to add a key-value pair to the Kv Log Store
     pub fn set(&mut self, key: &str, value: &str) -> Result<u64> {
-        let entry = LogEntry { key: key.to_owned(), value: Some(value.to_owned()) };
+        let entry = LogEntry {
+            key: key.to_owned(),
+            value: Some(value.to_owned()),
+        };
         Self::commit_operation(&entry, &mut self.writer)
     }
 
     /// API to remove a key if it exists in the Kv Log Store
     pub fn remove(&mut self, key: &str) -> Result<()> {
-        let entry = LogEntry { key: key.to_owned(), value: None };
+        let entry = LogEntry {
+            key: key.to_owned(),
+            value: None,
+        };
         Self::commit_operation(&entry, &mut self.writer)?;
         Ok(())
     }
@@ -81,7 +87,10 @@ impl KvLogStore {
         let mut stream = serde_json::Deserializer::from_reader(reader).into_iter();
         while let Some(op) = stream.next() {
             match op? {
-                LogEntry { key, value: Some(_) } => {
+                LogEntry {
+                    key,
+                    value: Some(_),
+                } => {
                     map.insert(key, pos);
                 }
                 LogEntry { key, value: None } => {
@@ -102,18 +111,17 @@ impl KvLogStore {
             let op = op?;
             if op.key == lookup_key {
                 if let Some(value) = op.value {
-                    return Ok(value.to_owned());
+                    return Ok(value);
                 } else {
                     return Err(err_msg("KV map out of sync with KV store"));
                 }
             } else {
                 return Err(err_msg(format!(
-                            "Key mismatch in log store. Expected: {}. Found: {}",
-                            op.key, lookup_key
-                            )));
+                    "Key mismatch in log store. Expected: {}. Found: {}",
+                    op.key, lookup_key
+                )));
             }
-        };
+        }
         panic!("Shouldn't have been here!")
     }
 }
-

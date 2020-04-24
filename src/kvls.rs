@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 pub struct KvLogStore {
     reader: BufReader<File>,
     writer: BufWriter<File>,
+    entries: usize,
 }
 
 #[derive(Serialize)]
@@ -42,6 +43,7 @@ impl KvLogStore {
         Ok(KvLogStore {
             reader,
             writer,
+            entries: 0,
         })
     }
 
@@ -79,7 +81,9 @@ impl KvLogStore {
             key: key.to_owned(),
             value: Some(value.to_owned()),
         };
-        Self::commit_operation(&entry, &mut self.writer)
+        let pos = Self::commit_operation(&entry, &mut self.writer)?;
+        self.entries += 1;
+        Ok(pos)
     }
 
     /// API to remove a key if it exists in the Kv Log Store
@@ -89,6 +93,7 @@ impl KvLogStore {
             value: None,
         };
         Self::commit_operation(&entry, &mut self.writer)?;
+        self.entries += 1;
         Ok(())
     }
 
@@ -108,6 +113,7 @@ impl KvLogStore {
             } else {
                 map.remove(&entry.key);
             }
+            self.entries += 1;
             pos = stream.byte_offset() as u64;
         }
         Ok(map)
@@ -135,5 +141,17 @@ impl KvLogStore {
             }
         }
         panic!("Shouldn't have been here!")
+    }
+
+    pub fn needs_compaction(&self) -> bool {
+        static mut LIMIT: usize = 1024;
+        unsafe {
+            if self.entries >= LIMIT {
+                LIMIT *= 2;
+                true
+            } else {
+                false
+            }
+        }
     }
 }

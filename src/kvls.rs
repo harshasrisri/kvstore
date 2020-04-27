@@ -98,19 +98,14 @@ impl KvLogStore {
         let reader = self.reader.get_mut();
         let mut map = HashMap::new();
         let mut pos = reader.seek(SeekFrom::Start(0))?;
-        let mut stream = serde_json::Deserializer::from_reader(reader).into_iter();
+        let mut stream = serde_json::Deserializer::from_reader(reader).into_iter::<DeLogEntry>();
         while let Some(op) = stream.next() {
-            match op? {
-                DeLogEntry {
-                    key,
-                    value: Some(_),
-                } => {
-                    map.insert(key, pos);
-                }
-                DeLogEntry { key, value: None } => {
-                    map.remove(&key);
-                }
-            };
+            let op = op?;
+            if op.value.is_some() {
+                map.insert(op.key, pos);
+            } else {
+                map.remove(&op.key);
+            }
             self.num_entries += 1;
             pos = stream.byte_offset() as u64;
         }

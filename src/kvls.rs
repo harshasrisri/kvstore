@@ -8,8 +8,11 @@ use std::io::{BufReader, BufWriter, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 pub struct KvLogStore {
+    path: PathBuf,
     reader: BufReader<File>,
     writer: BufWriter<File>,
+    num_entries: usize,
+    max_entries: usize,
 }
 
 #[derive(Serialize)]
@@ -25,6 +28,7 @@ struct DeLogEntry {
 }
 
 const LOG_FILE_NAME: &str = "kvls.ser";
+const COMPACTION_FILE: &str = "kvls.compact.ser";
 
 impl KvLogStore {
     /// Method to open a Key Value Store from a file
@@ -37,16 +41,22 @@ impl KvLogStore {
             return Err(err_msg("Error processing path"));
         }
 
-        let (reader, writer) = Self::open_file_handles(&path)?;
+        let (reader, writer) = Self::open_file_handles(&path, LOG_FILE_NAME)?;
 
         Ok(KvLogStore {
+            path,
             reader,
             writer,
+            num_entries: 0,
+            max_entries: 1024,
         })
     }
 
-    fn open_file_handles(path: &PathBuf) -> Result<(BufReader<File>, BufWriter<File>)> {
-        let filename = Path::new(path).join(LOG_FILE_NAME);
+    fn open_file_handles<F>(path: F, file: &str) -> Result<(BufReader<File>, BufWriter<File>)>
+    where
+        F: AsRef<Path> + AsRef<OsStr>,
+    {
+        let filename = Path::new(&path).join(file);
         let log_handle = OpenOptions::new()
             .create(true)
             .append(true)
@@ -67,14 +77,20 @@ impl KvLogStore {
 
     /// API to add a key-value pair to the Kv Log Store
     pub fn set(&mut self, key: &str, value: &str) -> Result<u64> {
-        let entry = SeLogEntry { key, value: Some(value) };
-        Self::commit_operation(entry, &mut self.writer)
+        let entry = SeLogEntry {
+            key,
+            value: Some(value),
+        };
+        let pos = Self::commit_operation(entry, &mut self.writer)?;
+        self.num_entries += 1;
+        Ok(pos)
     }
 
     /// API to remove a key if it exists in the Kv Log Store
     pub fn remove(&mut self, key: &str) -> Result<()> {
         let entry = SeLogEntry { key, value: None };
         Self::commit_operation(entry, &mut self.writer)?;
+        self.num_entries += 1;
         Ok(())
     }
 
@@ -95,6 +111,7 @@ impl KvLogStore {
                     map.remove(&key);
                 }
             };
+            self.num_entries += 1;
             pos = stream.byte_offset() as u64;
         }
         Ok(map)
@@ -120,5 +137,38 @@ impl KvLogStore {
             }
         }
         panic!("Shouldn't have been here!")
+    }
+
+    pub fn do_compaction(&mut self, map: &mut HashMap<String, u64>) -> Result<bool> {
+        if self.num_entries < self.max_entries {
+            return Ok(false);
+        }
+
+        let (_reader, mut writer) = Self::open_file_handles(&self.path, COMPACTION_FILE)?;
+
+        for (key, pos) in map.iter_mut() {
+            let value = self.get_at_offset(key, *pos)?;
+            let entry = SeLogEntry {
+                key,
+                value: Some(&value),
+            };
+            *pos = Self::commit_operation(entry, &mut writer)?;
+        }
+
+        std::fs::rename(
+            self.path.join(COMPACTION_FILE),
+            self.path.join(LOG_FILE_NAME),
+        )?;
+
+        let (reader, writer) = Self::open_file_handles(&self.path, LOG_FILE_NAME)?;
+        self.reader = reader;
+        self.writer = writer;
+        self.num_entries = map.len();
+
+        if self.num_entries >= self.max_entries {
+            self.max_entries *= 2;
+        }
+
+        Ok(true)
     }
 }

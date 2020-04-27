@@ -36,6 +36,7 @@ impl KvStore {
 
     /// API to add a key-value pair to the KvStore
     pub fn set(&mut self, key: String, value: String) -> Result<()> {
+        self.kvlog.do_compaction(&mut self.kvmap)?;
         let pos = self.kvlog.set(&key, &value)?;
         self.kvmap.insert(key, pos);
         Ok(())
@@ -52,6 +53,7 @@ impl KvStore {
 
     /// API to remove a key if it exists in the KvStore
     pub fn remove(&mut self, key: String) -> Result<()> {
+        self.kvlog.do_compaction(&mut self.kvmap)?;
         if !self.kvmap.contains_key(&key) {
             return Err(err_msg("Key not found"));
         }

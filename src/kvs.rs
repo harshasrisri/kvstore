@@ -36,8 +36,8 @@ impl KvStore {
 
     /// API to add a key-value pair to the KvStore
     pub fn set(&mut self, key: String, value: String) -> Result<()> {
-        if self.kvlog.needs_compaction() {
-            eprintln!("Log needs compaction");
+        if self.kvlog.do_compaction(&mut self.kvmap)? {
+            eprintln!("Log needed compaction");
         }
         let pos = self.kvlog.set(&key, &value)?;
         self.kvmap.insert(key, pos);
@@ -55,8 +55,8 @@ impl KvStore {
 
     /// API to remove a key if it exists in the KvStore
     pub fn remove(&mut self, key: String) -> Result<()> {
-        if self.kvlog.needs_compaction() {
-            eprintln!("Log needs compaction");
+        if self.kvlog.do_compaction(&mut self.kvmap)? {
+            eprintln!("Log needed compaction");
         }
         if !self.kvmap.contains_key(&key) {
             return Err(err_msg("Key not found"));

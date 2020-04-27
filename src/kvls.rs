@@ -8,6 +8,7 @@ use std::io::{BufReader, BufWriter, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 pub struct KvLogStore {
+    path: PathBuf,
     reader: BufReader<File>,
     writer: BufWriter<File>,
     entries: usize,
@@ -26,6 +27,7 @@ struct DeLogEntry<K, V> {
 }
 
 const LOG_FILE_NAME: &str = "kvls.ser";
+const COMPACTED_FILE: &str = "kvls.compacted.ser";
 
 impl KvLogStore {
     /// Method to open a Key Value Store from a file
@@ -38,17 +40,18 @@ impl KvLogStore {
             return Err(err_msg("Error processing path"));
         }
 
-        let (reader, writer) = Self::open_file_handles(&path)?;
+        let (reader, writer) = Self::open_file_handles(&path, LOG_FILE_NAME)?;
 
         Ok(KvLogStore {
+            path,
             reader,
             writer,
             entries: 0,
         })
     }
 
-    fn open_file_handles(path: &PathBuf) -> Result<(BufReader<File>, BufWriter<File>)> {
-        let filename = Path::new(path).join(LOG_FILE_NAME);
+    fn open_file_handles(path: &PathBuf, file: &str) -> Result<(BufReader<File>, BufWriter<File>)> {
+        let filename = Path::new(path).join(file);
         let log_handle = OpenOptions::new()
             .create(true)
             .append(true)
@@ -78,8 +81,8 @@ impl KvLogStore {
         V: Serialize,
     {
         let entry = SerLogEntry {
-            key: key.to_owned(),
-            value: Some(value.to_owned()),
+            key: key,
+            value: Some(value),
         };
         let pos = Self::commit_operation(&entry, &mut self.writer)?;
         self.entries += 1;
@@ -119,7 +122,7 @@ impl KvLogStore {
         Ok(map)
     }
 
-    pub fn get_at_offset<'de, K, V>(&self, lookup_key: &K, pos: u64) -> Result<V> 
+    pub fn get_at_offset<'de, K, V>(&self, key: &K, pos: u64) -> Result<V> 
     where
         K: Deserialize<'de> + std::cmp::PartialEq,
         V: Deserialize<'de>,
@@ -129,7 +132,7 @@ impl KvLogStore {
         let stream = serde_json::Deserializer::from_reader(reader).into_iter();
         for op in stream {
             let op: DeLogEntry<K, V> = op?;
-            if op.key == *lookup_key {
+            if op.key == *key {
                 if let Some(value) = op.value {
                     return Ok(value);
                 } else {
@@ -143,7 +146,7 @@ impl KvLogStore {
         panic!("Shouldn't have been here!")
     }
 
-    pub fn needs_compaction(&self) -> bool {
+    fn needs_compaction(&self) -> bool {
         static mut LIMIT: usize = 1024;
         unsafe {
             if self.entries >= LIMIT {
@@ -153,5 +156,33 @@ impl KvLogStore {
                 false
             }
         }
+    }
+
+    pub fn do_compaction<'de, K>(&mut self, map: &mut HashMap<K, u64>) -> Result<bool>
+    where
+    K: std::fmt::Debug + std::cmp::Eq + std::hash::Hash + Serialize + Deserialize<'de>,
+    {
+        if !self.needs_compaction() {
+            return Ok(false);
+        }
+
+        let (_reader, mut writer) = Self::open_file_handles(&self.path, COMPACTED_FILE)?;
+
+        for (key, pos) in map.iter_mut() {
+            eprintln!("key: {:?}, pos: {}", key, pos);
+            let value = self.get_at_offset(key, *pos)?;
+            eprintln!("value: {:?}", value);
+            let entry = SerLogEntry {
+                key: &key, value: Some(&value),
+            };
+            *pos = Self::commit_operation(&entry, &mut writer)?;
+        }
+
+        std::fs::rename(&self.path.join(COMPACTED_FILE), &self.path.join(LOG_FILE_NAME))?;
+        let (reader, writer) = Self::open_file_handles(&self.path, LOG_FILE_NAME)?;
+        self.reader = reader;
+        self.writer = writer;
+
+        Ok(true)
     }
 }

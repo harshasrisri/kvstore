@@ -10,11 +10,16 @@ use std::path::{Path, PathBuf};
 pub struct KvLogStore {
     reader: BufReader<File>,
     writer: BufWriter<File>,
-    mapped: bool,
 }
 
-#[derive(Serialize, Deserialize)]
-struct LogEntry {
+#[derive(Serialize)]
+struct SeLogEntry<'a> {
+    key: &'a str,
+    value: Option<&'a str>,
+}
+
+#[derive(Deserialize)]
+struct DeLogEntry {
     key: String,
     value: Option<String>,
 }
@@ -37,7 +42,6 @@ impl KvLogStore {
         Ok(KvLogStore {
             reader,
             writer,
-            mapped: false,
         })
     }
 
@@ -54,8 +58,8 @@ impl KvLogStore {
         Ok((reader, writer))
     }
 
-    fn commit_operation(op: &LogEntry, mut writer: impl Write + Seek) -> Result<u64> {
-        let v = serde_json::to_vec(op)?;
+    fn commit_operation(op: SeLogEntry, mut writer: impl Write + Seek) -> Result<u64> {
+        let v = serde_json::to_vec(&op)?;
         writer.write_all(&v)?;
         let end = writer.seek(SeekFrom::End(0))?;
         Ok(end - v.len() as u64)
@@ -63,20 +67,14 @@ impl KvLogStore {
 
     /// API to add a key-value pair to the Kv Log Store
     pub fn set(&mut self, key: &str, value: &str) -> Result<u64> {
-        let entry = LogEntry {
-            key: key.to_owned(),
-            value: Some(value.to_owned()),
-        };
-        Self::commit_operation(&entry, &mut self.writer)
+        let entry = SeLogEntry { key, value: Some(value) };
+        Self::commit_operation(entry, &mut self.writer)
     }
 
     /// API to remove a key if it exists in the Kv Log Store
     pub fn remove(&mut self, key: &str) -> Result<()> {
-        let entry = LogEntry {
-            key: key.to_owned(),
-            value: None,
-        };
-        Self::commit_operation(&entry, &mut self.writer)?;
+        let entry = SeLogEntry { key, value: None };
+        Self::commit_operation(entry, &mut self.writer)?;
         Ok(())
     }
 
@@ -87,29 +85,28 @@ impl KvLogStore {
         let mut stream = serde_json::Deserializer::from_reader(reader).into_iter();
         while let Some(op) = stream.next() {
             match op? {
-                LogEntry {
+                DeLogEntry {
                     key,
                     value: Some(_),
                 } => {
                     map.insert(key, pos);
                 }
-                LogEntry { key, value: None } => {
+                DeLogEntry { key, value: None } => {
                     map.remove(&key);
                 }
             };
             pos = stream.byte_offset() as u64;
         }
-        self.mapped = true;
         Ok(map)
     }
 
-    pub fn get_at_offset(&self, lookup_key: &str, pos: u64) -> Result<String> {
+    pub fn get_at_offset(&self, key: &str, pos: u64) -> Result<String> {
         let mut reader = self.reader.get_ref().try_clone()?;
         reader.seek(SeekFrom::Start(pos))?;
-        let stream = serde_json::Deserializer::from_reader(reader).into_iter::<LogEntry>();
+        let stream = serde_json::Deserializer::from_reader(reader).into_iter::<DeLogEntry>();
         for op in stream {
             let op = op?;
-            if op.key == lookup_key {
+            if op.key == key {
                 if let Some(value) = op.value {
                     return Ok(value);
                 } else {
@@ -118,7 +115,7 @@ impl KvLogStore {
             } else {
                 return Err(err_msg(format!(
                     "Key mismatch in log store. Expected: {}. Found: {}",
-                    op.key, lookup_key
+                    op.key, key
                 )));
             }
         }

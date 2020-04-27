@@ -114,6 +114,17 @@ impl KvLogStore {
             self.num_entries += 1;
             pos = stream.byte_offset() as u64;
         }
+
+        if self.num_entries > self.max_entries {
+            if self.num_entries > 2 * map.len() {
+                self.do_compaction(&mut map)?;
+            } else {
+                while self.num_entries > self.max_entries {
+                    self.max_entries *= 2;
+                }
+            }
+        }
+
         Ok(map)
     }
 
@@ -144,6 +155,9 @@ impl KvLogStore {
             return Ok(false);
         }
 
+        let start = std::time::Instant::now();
+        eprintln!("Num Entries Before Compaction : {}", self.num_entries);
+
         let (_reader, mut writer) = Self::open_file_handles(&self.path, COMPACTION_FILE)?;
 
         for (key, pos) in map.iter_mut() {
@@ -169,6 +183,11 @@ impl KvLogStore {
             self.max_entries *= 2;
         }
 
+        eprintln!(
+            "Num Entries After  Compaction : {}. Time taken: {}ms",
+            self.num_entries,
+            start.elapsed().as_millis()
+        );
         Ok(true)
     }
 }

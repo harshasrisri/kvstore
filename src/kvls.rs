@@ -114,17 +114,6 @@ impl KvLogStore {
             self.num_entries += 1;
             pos = stream.byte_offset() as u64;
         }
-
-        if self.num_entries > self.max_entries {
-            if self.num_entries > 2 * map.len() {
-                self.do_compaction(&mut map)?;
-            } else {
-                while self.num_entries > self.max_entries {
-                    self.max_entries *= 2;
-                }
-            }
-        }
-
         Ok(map)
     }
 
@@ -150,8 +139,20 @@ impl KvLogStore {
         panic!("Shouldn't have been here!")
     }
 
-    pub fn do_compaction(&mut self, map: &mut HashMap<String, u64>) -> Result<bool> {
+    fn compaction_analysis(&mut self, map_len: usize) -> bool {
         if self.num_entries < self.max_entries {
+            return false;
+        } else if self.num_entries < 2 * map_len {
+            while self.num_entries > self.max_entries {
+                self.max_entries *= 2;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    pub fn do_compaction(&mut self, map: &mut HashMap<String, u64>) -> Result<bool> {
+        if !self.compaction_analysis(map.len()) {
             return Ok(false);
         }
 
@@ -178,10 +179,6 @@ impl KvLogStore {
         self.reader = reader;
         self.writer = writer;
         self.num_entries = map.len();
-
-        if self.num_entries >= self.max_entries {
-            self.max_entries *= 2;
-        }
 
         eprintln!(
             "Num Entries After  Compaction : {}. Time taken: {}ms",

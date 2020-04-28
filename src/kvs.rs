@@ -21,6 +21,7 @@ use std::path::Path;
 pub struct KvStore {
     kvmap: HashMap<String, u64>,
     kvlog: KvLogStore,
+    mapped: bool,
 }
 
 impl KvStore {
@@ -29,9 +30,9 @@ impl KvStore {
     where
         F: AsRef<Path> + AsRef<OsStr> + Clone,
     {
-        let mut kvlog = KvLogStore::new(path)?;
-        let kvmap = kvlog.build_map()?;
-        Ok(KvStore { kvmap, kvlog })
+        let kvlog = KvLogStore::new(path)?;
+        let kvmap = HashMap::new();
+        Ok(KvStore { kvmap, kvlog, mapped: false })
     }
 
     /// API to add a key-value pair to the KvStore
@@ -44,6 +45,10 @@ impl KvStore {
 
     /// API to query if a key is present in the KvStore and return its value
     pub fn get(&mut self, key: String) -> Result<Option<String>> {
+        if !self.mapped {
+            self.kvmap = self.kvlog.build_map()?;
+            self.mapped = true;
+        }
         if let Some(pos) = self.kvmap.get(&key) {
             let value = self.kvlog.get_at_offset(&key, *pos)?;
             return Ok(Some(value));
@@ -53,10 +58,18 @@ impl KvStore {
 
     /// API to remove a key if it exists in the KvStore
     pub fn remove(&mut self, key: String) -> Result<()> {
+        if !self.mapped {
+            self.kvmap = self.kvlog.build_map()?;
+            self.mapped = true;
+        }
         self.kvlog.do_compaction(&mut self.kvmap)?;
         if !self.kvmap.contains_key(&key) {
             return Err(err_msg("Key not found"));
         }
+        self.quick_remove(key)
+    }
+
+    pub fn quick_remove(&mut self, key: String) -> Result<()> {
         self.kvlog.remove(&key)?;
         self.kvmap.remove(&key);
         Ok(())

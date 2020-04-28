@@ -29,8 +29,10 @@ fn main() -> Result<()> {
                 println!("Key not found");
             }
         }
-        Operations::Rm { key } => {
-            if kvs.remove(key).is_err() {
+        Operations::Rm { quick, key } => {
+            if quick {
+                kvs.quick_remove(key)?;
+            } else if kvs.remove(key).is_err() {
                 println!("Key not found");
                 std::process::exit(1);
             }

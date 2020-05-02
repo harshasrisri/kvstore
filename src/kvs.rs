@@ -30,9 +30,33 @@ impl KvStore {
     where
         F: AsRef<Path> + AsRef<OsStr> + Clone,
     {
+        let mut kvlog = KvLogStore::new(path)?;
+        let kvmap = kvlog.build_map()?;
+        Ok(KvStore {
+            kvmap,
+            kvlog,
+            mapped: true,
+        })
+    }
+
+    pub fn quick_open<F>(path: F) -> Result<KvStore>
+    where
+        F: AsRef<Path> + AsRef<OsStr> + Clone,
+    {
         let kvlog = KvLogStore::new(path)?;
         let kvmap = HashMap::new();
-        Ok(KvStore { kvmap, kvlog, mapped: false })
+        Ok(KvStore {
+            kvmap,
+            kvlog,
+            mapped: false,
+        })
+    }
+
+    pub fn build_map(&mut self) -> Result<()> {
+        self.kvmap = self.kvlog.build_map()?;
+        self.kvlog.do_compaction(&mut self.kvmap)?;
+        self.mapped = true;
+        Ok(())
     }
 
     /// API to add a key-value pair to the KvStore
@@ -44,10 +68,9 @@ impl KvStore {
     }
 
     /// API to query if a key is present in the KvStore and return its value
-    pub fn get(&mut self, key: String) -> Result<Option<String>> {
+    pub fn get(&self, key: String) -> Result<Option<String>> {
         if !self.mapped {
-            self.kvmap = self.kvlog.build_map()?;
-            self.mapped = true;
+            return Err(err_msg("Can't get value without loading the map"));
         }
         if let Some(pos) = self.kvmap.get(&key) {
             let value = self.kvlog.get_at_offset(&key, *pos)?;
@@ -58,18 +81,12 @@ impl KvStore {
 
     /// API to remove a key if it exists in the KvStore
     pub fn remove(&mut self, key: String) -> Result<()> {
-        if !self.mapped {
-            self.kvmap = self.kvlog.build_map()?;
-            self.mapped = true;
+        if self.mapped {
+            self.kvlog.do_compaction(&mut self.kvmap)?;
+            if !self.kvmap.contains_key(&key) {
+                return Err(err_msg("Key not found"));
+            }
         }
-        self.kvlog.do_compaction(&mut self.kvmap)?;
-        if !self.kvmap.contains_key(&key) {
-            return Err(err_msg("Key not found"));
-        }
-        self.quick_remove(key)
-    }
-
-    pub fn quick_remove(&mut self, key: String) -> Result<()> {
         self.kvlog.remove(&key)?;
         self.kvmap.remove(&key);
         Ok(())

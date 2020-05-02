@@ -22,10 +22,6 @@ pub enum Operations {
         key: String,
     },
     Rm {
-        /// Don't process in strict mode
-        #[structopt(short, long)]
-        quick: bool,
-
         /// unique key in store
         #[structopt(required = true)]
         key: String,
